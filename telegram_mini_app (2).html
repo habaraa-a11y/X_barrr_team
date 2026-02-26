@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OpenClaw Agents</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #1a1a2e);
+            color: var(--tg-theme-text-color, #ffffff);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Звёздный фон */
+        .stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .star {
+            position: absolute;
+            background: rgba(255,255,255,0.8);
+            border-radius: 50%;
+            animation: twinkle 3s ease-in-out infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Шапка */
+        .header {
+            position: relative;
+            z-index: 10;
+            padding: 20px;
+            text-align: center;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        /* Сетка агентов */
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Карточка агента */
+        .agent-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .agent-card:active {
+            transform: scale(0.95);
+        }
+
+        .agent-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, transparent, rgba(255,255,255,0.05));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .agent-card:hover::before {
+            opacity: 1;
+        }
+
+        /* Аватар */
+        .agent-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            position: relative;
+            border: 3px solid rgba(255,255,255,0.2);
+        }
+
+        /* Анимации */
+        .agent-dimka .agent-avatar {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .agent-amocrm .agent-avatar {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            box-shadow: 0 0 30px rgba(17, 153, 142, 0.5);
+            animation: bounce 1.5s ease-in-out infinite;
+        }
+
+        .agent-fitness .agent-avatar {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            box-shadow: 0 0 30px rgba(240, 147, 251, 0.5);
+            animation: shake 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes shake {
+            from { transform: rotate(-3deg); }
+            to { transform: rotate(3deg); }
+        }
+
+        /* Статус */
+        .status-dot {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            width: 16px;
+            height: 16px;
+            background: #00ff88;
+            border-radius: 50%;
+            border: 2px solid #1a1a2e;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Имя и роль */
+        .agent-name {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .agent-role {
+            font-size: 13px;
+            opacity: 0.7;
+        }
+
+        /* Чат-экран */
+        .chat-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--tg-theme-bg-color, #1a1a2e);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+        }
+
+        .chat-screen.active {
+            display: flex;
+        }
+
+        /* Шапка чата */
+        .chat-header {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .chat-back {
+            background: none;
+            border: none;
+            color: var(--tg-theme-text-color, #fff);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .chat-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            margin: 0 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .chat-info h3 {
+            font-size: 18px;
+            margin: 0;
+        }
+
+        .chat-info span {
+            font-size: 13px;
+            color: #00ff88;
+        }
+
+        /* Сообщения */
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 15px;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease;
+            word-wrap: break-word;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.agent {
+            background: rgba(255,255,255,0.1);
+            color: var(--tg-theme-text-color, #fff);
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Поле ввода */
+        .chat-input-container {
+            padding: 15px 20px 25px;
+            background: rgba(0,0,0,0.2);
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 18px;
+            border-radius: 25px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: var(--tg-theme-text-color, #fff);
+            font-size: 15px;
+            outline: none;
+        }
+
+        .chat-input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .chat-send {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Индикатор загрузки */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 15px 20px;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 50%;
+            animation: typing 1.4s ease-in-out infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* Подсказка */
+        .hint {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(102, 126, 234, 0.9);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 50;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="stars" id="stars"></div>
+
+    <!-- Главный экран -->
+    <div class="main-screen" id="mainScreen">
+        <div class="header">
+            <h1>🖥️ OpenClaw Desktop</h1>
+            <p>Выбери агента для работы</p>
+        </div>
+
+        <div class="agents-grid">
+            <div class="agent-card agent-amocrm" onclick="openChat('amocrm')">
+                <div class="agent-avatar">
+                    📊
+                    <div class="status-dot"></div>
+                </div>
+                <div class="agent-name">amoCRM</div>
+                <div class="agent-role">Эксперт по CRM</div>
+            </div>
+
+            <div class="agent-card agent-dimka" onclick="openChat('dimka')">
+                <div class="agent-avatar">
+                    🐾
+                    <div class="status-dot"></div>
+                </div>
+                <div class="agent-name">Димка</div>
+                <div class="agent-role">Главный помощник</div>
+            </div>
+
+            <div class="agent-card agent-fitness" onclick="openChat('fitness')">
+                <div class="agent-avatar">
+                    💪
+                    <div class="status-dot"></div>
+                </div>
+                <div class="agent-name">Фитнес</div>
+                <div class="agent-role">Персональный тренер</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Экран чата -->
+    <div class="chat-screen" id="chatScreen">
+        <div class="chat-header">
+            <button class="chat-back" onclick="closeChat()">←</button>
+            <div class="chat-avatar" id="chatAvatar">🐾</div>
+            <div class="chat-info">
+                <h3 id="chatName">Димка</h3>
+                <span>● Онлайн</span>
+            </div>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-container">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Напишите сообщение..." onkeypress="handleKeyPress(event)">
+            <button class="chat-send" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация Telegram WebApp
+        let tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        
+        // Установка цветов из темы Telegram
+        if (tg.colorScheme === 'dark') {
+            document.body.style.setProperty('--tg-theme-bg-color', '#1a1a2e');
+            document.body.style.setProperty('--tg-theme-text-color', '#ffffff');
+        }
+
+        // Данные агентов
+        const agents = {
+            'dimka': { name: 'Димка', avatar: '🐾', color: 'linear-gradient(135deg, #667eea, #764ba2)' },
+            'amocrm': { name: 'amoCRM Эксперт', avatar: '📊', color: 'linear-gradient(135deg, #11998e, #38ef7d)' },
+            'fitness': { name: 'Фитнес Тренер', avatar: '💪', color: 'linear-gradient(135deg, #f093fb, #f5576c)' }
+        };
+
+        let currentAgent = 'dimka';
+
+        // Создание звёзд
+        function createStars() {
+            const starsContainer = document.getElementById('stars');
+            for (let i = 0; i < 50; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.width = Math.random() * 3 + 'px';
+                star.style.height = star.style.width;
+                star.style.animationDelay = Math.random() * 3 + 's';
+                starsContainer.appendChild(star);
+            }
+        }
+        createStars();
+
+        // Открыть чат
+        function openChat(agent) {
+            currentAgent = agent;
+            const agentData = agents[agent];
+            
+            document.getElementById('chatAvatar').textContent = agentData.avatar;
+            document.getElementById('chatAvatar').style.background = agentData.color;
+            document.getElementById('chatName').textContent = agentData.name;
+            
+            document.getElementById('chatScreen').classList.add('active');
+            document.getElementById('chatInput').focus();
+
+            // Приветственное сообщение
+            const messages = document.getElementById('chatMessages');
+            messages.innerHTML = '';
+            
+            const greetings = {
+                'dimka': 'Привет! Я Димка, твой главный помощник. Чем могу помочь? 🐾',
+                'amocrm': 'Здравствуй! Я эксперт по amoCRM. Готов помочь с интеграциями и автоматизацией! 📊',
+                'fitness': 'Привет! Я твой фитнес-тренер. Давай составим план тренировок? 💪'
+            };
+            
+            addMessage(greetings[agent], 'agent');
+        }
+
+        // Закрыть чат
+        function closeChat() {
+            document.getElementById('chatScreen').classList.remove('active');
+        }
+
+        // Отправить сообщение
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Показываем сообщение пользователя
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Показываем индикатор набора
+            showTyping();
+
+            // Отправляем в Telegram
+            sendToTelegram(currentAgent, message);
+        }
+
+        // Показать индикатор набора
+        function showTyping() {
+            const messages = document.getElementById('chatMessages');
+            const typing = document.createElement('div');
+            typing.className = 'typing-indicator';
+            typing.id = 'typing-indicator';
+            typing.innerHTML = '<span></span><span></span><span></span>';
+            messages.appendChild(typing);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // Убрать индикатор набора
+        function hideTyping() {
+            const typing = document.getElementById('typing-indicator');
+            if (typing) typing.remove();
+        }
+
+        // Добавить сообщение
+        function addMessage(text, sender) {
+            const messages = document.getElementById('chatMessages');
+            const msg = document.createElement('div');
+            msg.className = `message ${sender}`;
+            msg.textContent = text;
+            messages.appendChild(msg);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // Отправка в Telegram
+        function sendToTelegram(agent, message) {
+            // Формируем данные для отправки
+            const data = {
+                agent: agent,
+                agent_name: agents[agent].name,
+                message: message,
+                user_id: tg.initDataUnsafe?.user?.id || 'unknown',
+                username: tg.initDataUnsafe?.user?.username || 'unknown'
+            };
+
+            // Отправляем через Telegram WebApp API
+            tg.sendData(JSON.stringify(data));
+
+            // Показываем уведомление
+            tg.showAlert('Сообщение отправлено! Ожидай ответ в чате.');
+
+            // Имитация ответа (в реальности ответ придёт от бота)
+            setTimeout(() => {
+                hideTyping();
+                const responses = {
+                    'dimka': `Я получил твоё сообщение: "${message}". Отвечу в основном чате! 🐾`,
+                    'amocrm': `Запрос по amoCRM принят: "${message}". Скоро отвечу! 📊`,
+                    'fitness': `Понял твой вопрос: "${message}". Подготовлю план! 💪`
+                };
+                addMessage(responses[agent], 'agent');
+            }, 2000);
+        }
+
+        // Обработка Enter
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Получение данных от бота (если бот отправляет)
+        tg.onEvent('viewportChanged', () => {
+            tg.expand();
+        });
+
+        // Показать подсказку
+        setTimeout(() => {
+            const hint = document.createElement('div');
+            hint.className = 'hint';
+            hint.textContent = 'Нажми на агента, чтобы начать диалог';
+            document.body.appendChild(hint);
+            
+            setTimeout(() => hint.remove(), 4000);
+        }, 1000);
+    </script>
+</body>
+</html>
